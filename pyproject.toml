@@ -28,7 +28,7 @@ dependencies = [
 Repository = "https://github.com/GuardSkill/ComfyUI-lance-quant"
 
 [tool.comfy]
-PublisherId = "CHANGE_ME"
+PublisherId = "f43b8781-49e1-428f-8231-7c697062936b"
 DisplayName = "ComfyUI-Lance"
 requires-comfyui = ">=0.2.0"
 includes = [
