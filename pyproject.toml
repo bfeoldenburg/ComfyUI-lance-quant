@@ -1,0 +1,41 @@
+[project]
+name = "lance-quant-comfyui"
+version = "0.3.0"
+description = "ComfyUI node pack for ByteDance Lance image and video generation, editing, and understanding."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+dependencies = [
+    "transformers==4.49.0",
+    "diffusers==0.29.1",
+    "accelerate",
+    "safetensors",
+    "einops",
+    "decord",
+    "opencv-python",
+    "imageio",
+    "imageio-ffmpeg",
+    "qwen-vl-utils",
+    "kornia",
+    "omegaconf",
+    "pydantic",
+    "timm",
+    "sentencepiece",
+    "tiktoken",
+]
+
+[project.urls]
+Repository = "https://github.com/GuardSkill/ComfyUI-lance-quant"
+
+[tool.comfy]
+PublisherId = "CHANGE_ME"
+DisplayName = "ComfyUI-Lance"
+requires-comfyui = ">=0.2.0"
+includes = [
+    "__init__.py",
+    "nodes.py",
+    "lance_worker.py",
+    "scripts/**",
+    "example_workflows/**",
+    "README.md",
+]

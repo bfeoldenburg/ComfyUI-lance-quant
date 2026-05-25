@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+.DS_Store
+Lance/
+models/*/*.safetensors
+models/*/tokenizer.json
+models/*/vocab.json
+models/*/merges.txt
+models/*/model.safetensors.index.json
+models/*/*.bin
+models/*/*.gguf
+calib/
+results/
