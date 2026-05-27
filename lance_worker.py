@@ -162,24 +162,36 @@ def _normalise_manifest_for_worker(task: str, manifest_path: str) -> str:
 
 
 def _patch_sample_dict(sample: dict) -> bool:
-    if "data" in sample:
-        return False
+    patched = False
+    sample_key = None
+
+    if len(sample) == 1:
+        only_key, only_value = next(iter(sample.items()))
+        if isinstance(only_value, str):
+            sample_key = str(only_key)
+            sample.setdefault("data", only_value)
+            patched = True
 
     prompt = sample.get("prompt")
     text = sample.get("text")
-    if isinstance(prompt, str):
+    if "data" not in sample and isinstance(prompt, str):
         sample["data"] = prompt
-        return True
-    if isinstance(text, str):
+        patched = True
+    if "data" not in sample and isinstance(text, str):
         sample["data"] = text
-        return True
+        patched = True
 
-    if len(sample) == 1:
-        only_value = next(iter(sample.values()))
-        if isinstance(only_value, str):
-            sample["data"] = only_value
-            return True
-    return False
+    if "index" not in sample:
+        candidate = sample.get("file_name") or sample.get("image_path") or sample.get("video_path") or sample_key
+        if isinstance(candidate, str):
+            sample["index"] = candidate
+            patched = True
+
+    if "original_prompt_en" not in sample and isinstance(sample.get("data"), str):
+        sample["original_prompt_en"] = sample["data"]
+        patched = True
+
+    return patched
 
 
 def _normalise_dataset_samples(dataset) -> int:
