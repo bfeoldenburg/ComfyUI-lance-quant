@@ -280,6 +280,8 @@ def serve(state: dict):
             req = json.loads(line)
             task = req["task"]
             manifest_path = _normalise_manifest_for_worker(task, req["manifest_path"])
+            print(f"[worker-debug] task={task} manifest_path={manifest_path}", file=sys.stderr, flush=True)
+            print(Path(manifest_path).read_text(encoding="utf-8")[:1000], file=sys.stderr, flush=True)
             save_dir = req["save_dir"]
             Path(save_dir).mkdir(parents=True, exist_ok=True)
 
