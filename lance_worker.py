@@ -165,6 +165,12 @@ def _patch_sample_dict(sample: dict) -> bool:
     patched = False
     sample_key = None
 
+    def _sample_stem(value):
+        if not isinstance(value, str):
+            return None
+        stem, ext = osp.splitext(value)
+        return stem if ext else value
+
     if len(sample) == 1:
         only_key, only_value = next(iter(sample.items()))
         if isinstance(only_value, str):
@@ -183,8 +189,14 @@ def _patch_sample_dict(sample: dict) -> bool:
 
     if "index" not in sample:
         candidate = sample.get("file_name") or sample.get("image_path") or sample.get("video_path") or sample_key
-        if isinstance(candidate, str):
-            sample["index"] = candidate
+        stem = _sample_stem(candidate)
+        if stem:
+            sample["index"] = stem
+            patched = True
+    elif isinstance(sample.get("index"), str):
+        stem = _sample_stem(sample["index"])
+        if stem and stem != sample["index"]:
+            sample["index"] = stem
             patched = True
 
     if "original_prompt_en" not in sample and isinstance(sample.get("data"), str):
