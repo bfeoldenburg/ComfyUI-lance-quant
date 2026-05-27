@@ -155,7 +155,10 @@ def _normalise_manifest_for_worker(task: str, manifest_path: str) -> str:
 
     fd, tmp_path = tempfile.mkstemp(prefix=f"lance_manifest_{task}_", suffix=".json")
     os.close(fd)
-    Path(tmp_path).write_text(json.dumps(normalised), encoding="utf-8")
+    # ValidationDataset tries JSONL first. Writing compact one-line JSON makes
+    # it parse the whole manifest as a single row, so keep this multi-line to
+    # force the fallback json.load() path that expands dict manifests.
+    Path(tmp_path).write_text(json.dumps(normalised, ensure_ascii=False, indent=2), encoding="utf-8")
     return tmp_path
 
 
