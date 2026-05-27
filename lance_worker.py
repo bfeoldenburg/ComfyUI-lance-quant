@@ -357,6 +357,7 @@ def serve(state: dict):
     from data.dataset_base import DataConfig, simple_custom_collate
     from data.datasets_custom import ValidationDataset
     from torch.utils.data import DataLoader
+    from transformers import set_seed
 
     print("READY", flush=True)
     for line in sys.stdin:
@@ -378,8 +379,13 @@ def serve(state: dict):
             ia.video_height = req.get("height", getattr(ia, "video_height", 768))
             ia.video_width = req.get("width", getattr(ia, "video_width", 768))
             ia.cfg_text_scale = req.get("cfg_scale", getattr(ia, "cfg_text_scale", 4.0))
-            ia.validation_data_seed = req.get("seed", getattr(ia, "validation_data_seed", 42))
+            request_seed = req.get("seed", getattr(ia, "validation_data_seed", 42))
+            ia.validation_data_seed = request_seed
+            ia.validation_noise_seed = request_seed
             ia.prompt_data_dict = {}
+            state["training_args"].validation_data_seed = request_seed
+            state["training_args"].validation_noise_seed = request_seed
+            set_seed(request_seed)
 
             # Build a one-shot ValidationDataset on the user's manifest
             dataset_config = _configure_dataset_config(
