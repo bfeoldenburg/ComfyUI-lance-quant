@@ -159,6 +159,64 @@ def _normalise_manifest_for_worker(task: str, manifest_path: str) -> str:
     return tmp_path
 
 
+def _patch_sample_dict(sample: dict) -> bool:
+    if "data" in sample:
+        return False
+
+    prompt = sample.get("prompt")
+    text = sample.get("text")
+    if isinstance(prompt, str):
+        sample["data"] = prompt
+        return True
+    if isinstance(text, str):
+        sample["data"] = text
+        return True
+
+    if len(sample) == 1:
+        only_value = next(iter(sample.values()))
+        if isinstance(only_value, str):
+            sample["data"] = only_value
+            return True
+    return False
+
+
+def _normalise_dataset_samples(dataset) -> int:
+    """Patch already-loaded Lance dataset rows in-place.
+
+    Lance's ValidationDataset can materialize the manifest into different
+    attributes depending on task and version, so we scan the instance state
+    rather than depending on a single field name.
+    """
+    patched = 0
+    seen = set()
+
+    def _visit(value):
+        nonlocal patched
+        obj_id = id(value)
+        if obj_id in seen:
+            return
+        seen.add(obj_id)
+
+        if isinstance(value, dict):
+            if _patch_sample_dict(value):
+                patched += 1
+            for nested in value.values():
+                if isinstance(nested, (dict, list, tuple)):
+                    _visit(nested)
+            return
+
+        if isinstance(value, (list, tuple)):
+            for item in value:
+                if isinstance(item, (dict, list, tuple)):
+                    _visit(item)
+
+    for attr_value in vars(dataset).values():
+        if isinstance(attr_value, (dict, list, tuple)):
+            _visit(attr_value)
+
+    return patched
+
+
 class _BootstrapReady(Exception):
     pass
 
@@ -314,6 +372,10 @@ def serve(state: dict):
                 dataset_config=dataset_config,
                 local_rank=0, world_size=1,
             )
+            patched = _normalise_dataset_samples(ds)
+            if patched:
+                print(f"[worker] patched {patched} dataset sample(s) for task={task}",
+                      file=sys.stderr, flush=True)
             loader = DataLoader(ds, batch_size=1, num_workers=0,
                                   collate_fn=simple_custom_collate)
             for batch in loader:
