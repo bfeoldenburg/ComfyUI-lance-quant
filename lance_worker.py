@@ -108,8 +108,15 @@ def _configure_dataset_config(dataset_config, model_args, inference_args, vae_co
 
 
 def _normalise_manifest_for_worker(task: str, manifest_path: str) -> str:
-    """Expand shorthand generation manifests into the sample shape the
-    ValidationDataset expects when we bypass inference_lance.main()."""
+    """Rewrite t2i/t2v manifests into the exact shape ValidationDataset
+    expects when used outside inference_lance.main().
+
+    Lance uses the same file both as a YAML/JSON config input and as a prompt
+    manifest. For generation tasks the stable format is a JSON object mapping
+    output filename -> prompt string. ValidationDataset incorrectly tries to
+    parse that file as JSONL first, so we keep the object shape but write it as
+    multi-line JSON to force its json.load() fallback.
+    """
     if task not in {"t2i", "t2v"}:
         return manifest_path
 
@@ -123,32 +130,24 @@ def _normalise_manifest_for_worker(task: str, manifest_path: str) -> str:
         return manifest_path
 
     changed = False
-    normalised: dict[str, object] = {}
+    normalised: dict[str, str] = {}
     for sample_id, sample in payload.items():
         if isinstance(sample, str):
-            stem, ext = osp.splitext(str(sample_id))
-            normalised[str(sample_id)] = {
-                "id": stem or str(sample_id),
-                "file_name": str(sample_id),
-                "image_path": str(sample_id) if ext.lower() in {".png", ".jpg", ".jpeg", ".webp"} else None,
-                "video_path": str(sample_id) if ext.lower() in {".mp4", ".mov", ".avi", ".mkv", ".webm"} else None,
-                "data": sample,
-                "prompt": sample,
-                "text": sample,
-            }
-            changed = True
+            normalised[str(sample_id)] = sample
             continue
 
-        if isinstance(sample, dict) and "data" not in sample:
-            prompt = sample.get("prompt")
+        if isinstance(sample, dict):
+            prompt = sample.get("data")
+            if not isinstance(prompt, str):
+                prompt = sample.get("prompt")
+            if not isinstance(prompt, str):
+                prompt = sample.get("text")
             if isinstance(prompt, str):
-                patched = dict(sample)
-                patched["data"] = prompt
-                normalised[str(sample_id)] = patched
+                normalised[str(sample_id)] = prompt
                 changed = True
                 continue
 
-        normalised[str(sample_id)] = sample
+        return manifest_path
 
     if not changed:
         return manifest_path
