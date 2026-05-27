@@ -27,6 +27,7 @@ import json
 import os
 import os.path as osp
 import sys
+import tempfile
 import time
 import traceback
 from contextlib import contextmanager
@@ -104,6 +105,58 @@ def _configure_dataset_config(dataset_config, model_args, inference_args, vae_co
     dataset_config.resolution = inference_args.resolution
     dataset_config.text_template = inference_args.text_template
     return dataset_config
+
+
+def _normalise_manifest_for_worker(task: str, manifest_path: str) -> str:
+    """Expand shorthand generation manifests into the sample shape the
+    ValidationDataset expects when we bypass inference_lance.main()."""
+    if task not in {"t2i", "t2v"}:
+        return manifest_path
+
+    path = Path(manifest_path)
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return manifest_path
+
+    if not isinstance(payload, dict) or not payload:
+        return manifest_path
+
+    changed = False
+    normalised: dict[str, object] = {}
+    for sample_id, sample in payload.items():
+        if isinstance(sample, str):
+            stem, ext = osp.splitext(str(sample_id))
+            normalised[str(sample_id)] = {
+                "id": stem or str(sample_id),
+                "file_name": str(sample_id),
+                "image_path": str(sample_id) if ext.lower() in {".png", ".jpg", ".jpeg", ".webp"} else None,
+                "video_path": str(sample_id) if ext.lower() in {".mp4", ".mov", ".avi", ".mkv", ".webm"} else None,
+                "data": sample,
+                "prompt": sample,
+                "text": sample,
+            }
+            changed = True
+            continue
+
+        if isinstance(sample, dict) and "data" not in sample:
+            prompt = sample.get("prompt")
+            if isinstance(prompt, str):
+                patched = dict(sample)
+                patched["data"] = prompt
+                normalised[str(sample_id)] = patched
+                changed = True
+                continue
+
+        normalised[str(sample_id)] = sample
+
+    if not changed:
+        return manifest_path
+
+    fd, tmp_path = tempfile.mkstemp(prefix=f"lance_manifest_{task}_", suffix=".json")
+    os.close(fd)
+    Path(tmp_path).write_text(json.dumps(normalised), encoding="utf-8")
+    return tmp_path
 
 
 class _BootstrapReady(Exception):
@@ -226,7 +279,7 @@ def serve(state: dict):
         try:
             req = json.loads(line)
             task = req["task"]
-            manifest_path = req["manifest_path"]
+            manifest_path = _normalise_manifest_for_worker(task, req["manifest_path"])
             save_dir = req["save_dir"]
             Path(save_dir).mkdir(parents=True, exist_ok=True)
 
